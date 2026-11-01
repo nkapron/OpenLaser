@@ -21,6 +21,7 @@ typescript = [
 
 [dependencies]
 openlaser-core.workspace = true
+openlaser-calibration.workspace = true
 openlaser-correction.workspace = true
 ts-rs = { workspace = true, optional = true }
 openlaser-prep.workspace = true

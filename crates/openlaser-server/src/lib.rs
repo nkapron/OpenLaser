@@ -18,6 +18,7 @@ mod access;
 pub mod alarm_history;
 pub mod api;
 pub mod bindings;
+pub mod calibration;
 pub mod connect;
 pub mod coordinator;
 pub mod correction;

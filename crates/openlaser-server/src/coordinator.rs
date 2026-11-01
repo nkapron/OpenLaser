@@ -93,6 +93,8 @@ pub struct Coordinator {
     pub(crate) correction: crate::correction::Store,
     pub(crate) fonts: crate::font_store::Store,
     pub(crate) nesting_task: Option<crate::nesting::Task>,
+    /// The material profile builder, while one runs.
+    pub(crate) calibration_session: Option<crate::calibration::Session>,
     /// Original execution and its recovery choices, retained in this session.
     pub recovery: Option<crate::resume::Recovery>,
     recovery_view: Option<Arc<crate::resume::RecoveryView>>,
@@ -255,6 +257,7 @@ impl Coordinator {
             correction,
             fonts,
             nesting_task: None,
+            calibration_session: None,
             recovery: None,
             recovery_view: None,
             queued_draft: None,

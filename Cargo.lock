@@ -2599,6 +2599,7 @@ version = "0.1.0-alpha.4.1"
 dependencies = [
  "axum",
  "mdns-sd",
+ "openlaser-calibration",
  "openlaser-compiler",
  "openlaser-controller",
  "openlaser-core",

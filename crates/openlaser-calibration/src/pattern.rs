@@ -431,3 +431,66 @@ pub fn window_grid(speeds: &[f64], powers: &[f64], geometry: &Geometry) -> Resul
 pub fn bounds(pattern: &TestPattern) -> Option<Bounds> {
     pattern.drawing.bounds()
 }
+
+/// The pattern as a standalone SVG document, in sheet coordinates with Y
+/// up, so a viewer shows the plate the right way round and the library can
+/// keep the drawing as its source file.
+#[must_use]
+pub fn svg(pattern: &TestPattern, title: &str) -> Option<String> {
+    use std::fmt::Write as _;
+    let bounds = bounds(pattern)?;
+    let view = format!(
+        "{} {} {} {}",
+        bounds.min.x - 5.,
+        -(bounds.max.y + 5.),
+        bounds.width() + 10.,
+        bounds.height() + 10.,
+    );
+    let mut svg = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}mm\" height=\"{}mm\" viewBox=\"{view}\">\n\
+         <title>{title}</title>\n",
+        bounds.width() + 10.,
+        bounds.height() + 10.,
+    );
+    for contour in &pattern.drawing.contours {
+        let _ = writeln!(
+            svg,
+            "<path d=\"{}\" fill=\"none\" stroke=\"black\" stroke-width=\"0.2\"/>",
+            path(contour, 64)
+        );
+    }
+    svg.push_str("</svg>\n");
+    Some(svg)
+}
+
+/// One sampled point of a curve, `samples` to the arc.
+fn sample(curve: &Curve, step: usize, samples: usize) -> Point {
+    let t = f64::from(u32::try_from(step).unwrap_or(0))
+        / f64::from(u32::try_from(samples).unwrap_or(1));
+    curve.point(t)
+}
+
+/// A contour as an SVG path, sampled so arcs stay true at any scale.
+fn path(contour: &Contour, samples: usize) -> String {
+    use std::fmt::Write as _;
+    let mut path = String::new();
+    for curve in &contour.curves {
+        if path.is_empty() {
+            let start = curve.start();
+            let _ = write!(path, "M {} {}", start.x, start.y);
+        }
+        match curve {
+            Curve::Line { .. } => {
+                let end = curve.end();
+                let _ = write!(path, " L {} {}", end.x, end.y);
+            }
+            Curve::Arc { .. } => {
+                for step in 1..=samples {
+                    let point = sample(curve, step, samples);
+                    let _ = write!(path, " L {} {}", point.x, point.y);
+                }
+            }
+        }
+    }
+    path
+}
