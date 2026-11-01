@@ -2475,6 +2475,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "openlaser-calibration"
+version = "0.1.0-alpha.4.1"
+dependencies = [
+ "openlaser-core",
+ "openlaser-svg",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "openlaser-compiler"
 version = "0.1.0-alpha.4.1"
 dependencies = [

@@ -76,7 +76,7 @@ gate-names:
 gate-layers:
     #!/usr/bin/env bash
     set -euo pipefail
-    for crate in core correction prep nest dxf svg xml protocol compiler library network; do
+    for crate in core correction prep nest dxf svg calibration xml protocol compiler library network; do
         if cargo tree --locked -p "openlaser-$crate" -e normal --prefix none \
             | grep -qE '^(tokio|async-std|axum|hyper|mio|reqwest) '; then
             echo "gate-layers: openlaser-$crate depends on an async or network crate"; exit 1

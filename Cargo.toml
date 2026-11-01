@@ -21,6 +21,7 @@ openlaser-prep = { path = "crates/openlaser-prep", version = "0.1.0-alpha.4.1" }
 openlaser-nest = { path = "crates/openlaser-nest", version = "0.1.0-alpha.4.1" }
 openlaser-dxf = { path = "crates/openlaser-dxf", version = "0.1.0-alpha.4.1" }
 openlaser-svg = { path = "crates/openlaser-svg", version = "0.1.0-alpha.4.1" }
+openlaser-calibration = { path = "crates/openlaser-calibration", version = "0.1.0-alpha.4.1" }
 openlaser-xml = { path = "crates/openlaser-xml", version = "0.1.0-alpha.4.1" }
 openlaser-protocol = { path = "crates/openlaser-protocol", version = "0.1.0-alpha.4.1" }
 openlaser-compiler = { path = "crates/openlaser-compiler", version = "0.1.0-alpha.4.1" }
