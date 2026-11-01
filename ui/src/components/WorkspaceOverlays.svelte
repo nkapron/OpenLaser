@@ -10,6 +10,7 @@
   import NativeKeyboard from './NativeKeyboard.svelte';
   import Alarms from './Alarms.svelte';
   import Pending from './Pending.svelte';
+  import CutCalibration from './CutCalibration.svelte';
 
   let { nativeKeyboard = false }: { nativeKeyboard?: boolean } = $props();
   let completion = $state<PostflightReview | null>(null);
@@ -47,3 +48,7 @@
 {/if}
 {#if ui.modal === 'alarms'}<Alarms onclose={() => ui.modal = null} />{/if}
 {#if ui.modal === 'pending' && server.doc}<Pending onclose={() => { ui.modal = null; ui.pendingJobName = null; }} />{/if}
+{#if ui.modal === 'calibration' && server.doc}
+  {@const recipe = server.doc.library.recipes.find((r) => r.id === ui.selectedRecipe) ?? null}
+  {#if recipe}<CutCalibration {recipe} onclose={() => (ui.modal = null)} />{/if}
+{/if}

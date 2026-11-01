@@ -2,6 +2,28 @@
 
 Versions use Semantic Versioning, with prerelease identifiers for alpha builds.
 
+## Unreleased
+
+A material profile builder: dial in a cut recipe one setting at a time.
+
+- The Materials page gains a Calibrate action on every recipe. It walks
+  the recipe's settings in order — focus, gas pressure, power, cut speed,
+  frequency, cut height and the pierce's delay, power and frequency — one
+  at a time: each step loads a small labelled test pattern as the
+  working job, you cut it on scrap, pick the best cell from the plate, and
+  the pick becomes the next step's starting point. At the end the tuned
+  recipe is saved to the library as its own entry, tagged `calibrated`;
+  the recipe you started from is left untouched.
+- The focus step is cut one ladder row per pass: the wizard makes a tapped
+  row the only layer that cuts, so you re-focus the head and run once per
+  row, then pick the cleanest row. Every other step cuts its whole pattern
+  in one run, each cell under a recipe that differs in the one swept
+  setting; the variant recipes live only inside the job's layer choices,
+  never in the library.
+- A calibration is one session at a time, survives a restart of the
+  screen, and is discarded on purpose: cancelling asks first, and a save
+  the library refuses (say, a name with a slash) keeps every pick.
+
 ## 0.1.0-alpha.4.1 — 2026-09-25
 
 Fixes for running jobs on the laser's small PC.

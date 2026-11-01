@@ -125,7 +125,7 @@ class Ui {
   toast = $state<{ text: string; error: boolean; at: number } | null>(null);
   /** The confirmation on screen, if one is asked. */
   confirmation = $state<Confirmation | null>(null);
-  modal = $state<'pending' | 'alarms' | 'material' | 'recipe' | 'outputs' | null>(null);
+  modal = $state<'pending' | 'alarms' | 'material' | 'recipe' | 'outputs' | 'calibration' | null>(null);
   pendingJobName = $state<string | null>(null);
 
   editChecklist(scope: 'defaults' | 'pause' | 'postflight'): void {

@@ -15,6 +15,78 @@
 use crate::layers::LayerChange;
 use crate::{Coordinator, Error, Result};
 
+/// The recipe a session tunes, as its screens read it.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct CalibrationRecipe {
+    /// The recipe being tuned.
+    pub id: Id,
+    /// Its material.
+    pub name: String,
+    /// Which laser.
+    pub laser: openlaser_core::LaserMode,
+    /// The sheet thickness.
+    pub thickness_mm: f64,
+    /// The assist gas.
+    pub gas: String,
+}
+
+/// One tunable setting of the session, with its pick once made.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct CalibrationStep {
+    /// The recipe attribute the step varies.
+    pub parameter: String,
+    /// The setting's name, for the operator.
+    pub name: String,
+    /// The picked value, as the recipe stores it; `None` until picked.
+    pub picked: Option<String>,
+}
+
+/// One cell of the current step's pattern, as its screens read it.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct CalibrationCell {
+    /// The label cut beside the cell's geometry.
+    pub label: String,
+    /// The layer the cell's contours sit on.
+    pub layer: String,
+    /// The value the cell cuts, `None` for a cell with no single value.
+    pub value: Option<f64>,
+    /// The centre of the cell's cut geometry, for picking on a drawing.
+    pub center: [f64; 2],
+}
+
+/// One pick the operator made, oldest first.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct CalibrationPick {
+    /// The recipe attribute the pick set.
+    pub parameter: String,
+    /// The value picked, as the recipe stores it.
+    pub value: String,
+}
+
+/// The session as the screens see it.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct CalibrationSession {
+    /// The recipe being tuned, as it stands with every pick.
+    pub recipe: CalibrationRecipe,
+    /// The attribute being tuned now; `None` once every step is picked.
+    pub current: Option<String>,
+    /// Every tunable setting, in tuning order, with the picks so far.
+    pub steps: Vec<CalibrationStep>,
+    /// The current step's cells, empty until its pattern is minted.
+    pub cells: Vec<CalibrationCell>,
+    /// Every pick, oldest first.
+    pub picks: Vec<CalibrationPick>,
+    /// Whether every step has its pick.
+    pub complete: bool,
+    /// Counts picks and saves, so screens can tell a new state from an old one.
+    pub revision: u64,
+}
+
 impl From<openlaser_calibration::Error> for Error {
     fn from(error: openlaser_calibration::Error) -> Self {
         Self::Request(error.to_string())
@@ -87,8 +159,13 @@ fn matches(cell: &Cell, value: f64) -> bool {
 
 impl Coordinator {
     /// Starts tuning from a library recipe. The library is left untouched
-    /// until the session is saved.
+    /// until the session is saved; one session runs at a time.
     pub fn start_calibration(&mut self, id: &Id) -> Result<()> {
+        if self.calibration_session.is_some() {
+            return Err(Error::Refused(
+                "a calibration is already underway; cancel it first".into(),
+            ));
+        }
         let recipe = self.library.recipe(id)?.clone();
         let session = Session::new(recipe);
         if session.remaining.is_empty() {
@@ -214,18 +291,22 @@ impl Coordinator {
     }
 
     /// Saves the tuned recipe as a new library recipe, named as asked or
-    /// after the baseline, and ends the session.
+    /// after the baseline, and ends the session. A failed save keeps the
+    /// session, so the picks are never lost to a refused name.
     pub fn save_calibration(&mut self, name: Option<String>) -> Result<Id> {
         let session = self
             .calibration_session
-            .take()
+            .as_ref()
             .ok_or_else(|| Error::Refused("start a calibration from a recipe first".into()))?;
-        let mut recipe = session.working;
+        let mut recipe = session.working.clone();
         recipe.name = name.unwrap_or_else(|| format!("{} calibrated", recipe.name));
         recipe.file_name = None;
         recipe.source_sha256 = None;
         recipe.tags.push("calibrated".into());
-        Ok(self.library.add_recipe(recipe)?.id)
+        let id = self.library.add_recipe(recipe)?.id;
+        self.calibration_session = None;
+        self.library_changed();
+        Ok(id)
     }
 
     /// Ends the session, keeping nothing.
@@ -234,52 +315,61 @@ impl Coordinator {
     }
 
     /// The session as the screens see it, `None` when none runs.
-    pub fn calibration_session_view(&self) -> Option<serde_json::Value> {
+    pub fn calibration_session_view(&self) -> Option<CalibrationSession> {
         let session = self.calibration_session.as_ref()?;
-        let steps: Vec<serde_json::Value> = Parameter::ALL
+        let steps: Vec<CalibrationStep> = Parameter::ALL
             .into_iter()
             .filter(|parameter| parameter.anchor(&session.working.attributes).is_ok())
-            .map(|parameter| {
-                serde_json::json!({
-                    "parameter": parameter.attribute(),
-                    "name": parameter.name(),
-                    "picked": session.picks.iter()
-                        .find(|(done, _)| *done == parameter)
-                        .map(|(_, value)| parameter.attribute_value(*value)),
-                })
+            .map(|parameter| CalibrationStep {
+                parameter: parameter.attribute().to_owned(),
+                name: parameter.name().to_owned(),
+                picked: session
+                    .picks
+                    .iter()
+                    .find(|(done, _)| *done == parameter)
+                    .map(|(_, value)| parameter.attribute_value(*value)),
             })
             .collect();
-        let cells = session.step.as_ref().map(|step| {
-            step.cells
-                .iter()
-                .map(|cell| {
-                    serde_json::json!({
-                        "label": cell.label,
-                        "layer": cell.layer,
-                        "value": cell.deltas.first()
+        let cells = session
+            .step
+            .as_ref()
+            .map(|step| {
+                step.cells
+                    .iter()
+                    .map(|cell| CalibrationCell {
+                        label: cell.label.clone(),
+                        layer: cell.layer.clone(),
+                        value: cell
+                            .deltas
+                            .first()
                             .and_then(|delta| delta.value.parse::<f64>().ok()),
+                        center: [cell.center.x, cell.center.y],
                     })
-                })
-                .collect::<Vec<_>>()
-        });
-        Some(serde_json::json!({
-            "recipe": {
-                "id": session.working.id,
-                "name": session.working.name,
-                "laser": serde_json::to_value(session.working.laser).ok()?,
-                "thickness_mm": session.working.thickness_mm,
-                "gas": session.working.gas,
+                    .collect()
+            })
+            .unwrap_or_default();
+        Some(CalibrationSession {
+            recipe: CalibrationRecipe {
+                id: session.working.id.clone(),
+                name: session.working.name.clone(),
+                laser: session.working.laser,
+                thickness_mm: session.working.thickness_mm,
+                gas: session.working.gas.clone(),
             },
-            "current": session.current().map(Parameter::attribute),
-            "cells": cells,
-            "picks": session.picks.iter().map(|(parameter, value)| serde_json::json!({
-                "parameter": parameter.attribute(),
-                "value": parameter.attribute_value(*value),
-            })).collect::<Vec<_>>(),
-            "steps": steps,
-            "complete": session.remaining.is_empty(),
-            "revision": session.revision,
-        }))
+            current: session.current().map(Parameter::attribute).map(str::to_owned),
+            steps,
+            cells,
+            picks: session
+                .picks
+                .iter()
+                .map(|(parameter, value)| CalibrationPick {
+                    parameter: parameter.attribute().to_owned(),
+                    value: parameter.attribute_value(*value),
+                })
+                .collect(),
+            complete: session.remaining.is_empty(),
+            revision: session.revision,
+        })
     }
 }
 

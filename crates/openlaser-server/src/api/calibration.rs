@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The material profile builder's routes. Each request decodes here and the
-//! workflow stays in the coordinator's calibration session.
+//! workflow stays in the coordinator's calibration session. Generating a
+//! pattern is a draft edit like opening a part: it answers with the draft
+//! and its revision, and the screens see the pattern the moment it lands.
 
-use super::{Reply, ok};
+use super::{Reply, Value, edit, ok};
 use crate::coordinator::Shared;
 use axum::extract::State;
 use axum::routing::{get, post};
@@ -30,26 +32,41 @@ struct PickRequest {
     value: f64,
 }
 
+/// The session as one reply field, nested under `session`, computed
+/// under the coordinator's lock.
+fn session_field(c: &crate::coordinator::Coordinator) -> crate::Result<Value> {
+    serde_json::to_value(json!({ "session": c.calibration_session_view() }))
+        .map_err(|e| crate::Error::Request(e.to_string()))
+}
+
 async fn session(State(shared): State<Shared>) -> Reply {
     let view = shared.lock().await.calibration_session_view();
     Ok(Json(json!({ "session": view })))
 }
 
 async fn start(State(shared): State<Shared>, Json(request): Json<StartRequest>) -> Reply {
-    shared.lock().await.start_calibration(&request.recipe)?;
-    let view = shared.lock().await.calibration_session_view();
+    let view = {
+        let mut coordinator = shared.lock().await;
+        coordinator.start_calibration(&request.recipe)?;
+        coordinator.calibration_session_view()
+    };
     Ok(Json(json!({ "ok": true, "session": view })))
 }
 
 async fn generate(State(shared): State<Shared>) -> Reply {
-    shared.lock().await.generate_calibration()?;
-    let view = shared.lock().await.calibration_session_view();
-    Ok(Json(json!({ "ok": true, "session": view })))
+    edit(&shared, None, |coordinator| {
+        coordinator.generate_calibration()?;
+        session_field(coordinator)
+    })
+    .await
 }
 
 async fn pick(State(shared): State<Shared>, Json(request): Json<PickRequest>) -> Reply {
-    shared.lock().await.pick_calibration(request.value)?;
-    let view = shared.lock().await.calibration_session_view();
+    let view = {
+        let mut coordinator = shared.lock().await;
+        coordinator.pick_calibration(request.value)?;
+        coordinator.calibration_session_view()
+    };
     Ok(Json(json!({ "ok": true, "session": view })))
 }
 

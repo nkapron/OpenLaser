@@ -98,6 +98,12 @@
     if (confirmed) run(() => api.removeRecipe(recipe.id), () => ui.say('Recipe removed; saved jobs keep their copy.'));
   };
   const use = () => run(() => api.setRecipe(recipe.id), () => (ui.tab = 'setup'));
+  // The wizard tunes the saved values, so staged edits must be settled first.
+  const calibrate = () => {
+    if (pending || saving) { ui.say('Save or discard this recipe’s edits before calibrating it.', true); return; }
+    ui.selectedRecipe = recipe.id;
+    ui.modal = 'calibration';
+  };
 </script>
 
 <section class="panel main">
@@ -123,6 +129,7 @@
       <button class="btn btn-ghost" data-numpad onclick={thickness}>Thickness</button>
       <button class="btn btn-ghost" onclick={() => (sheet = 'inspector')}>Imported values</button>
       <button class="btn btn-ghost" onclick={oncopy}><i class="ic ic-copy"></i>Copy to thickness</button>
+      <button class="btn btn-ghost" onclick={calibrate}><i class="ic ic-target"></i>Calibrate</button>
       <button class="btn btn-ghost recipe-delete" onclick={remove}><i class="ic ic-trash"></i>Delete recipe</button>
     </div>
   </div>

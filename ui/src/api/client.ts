@@ -10,7 +10,7 @@ import { server } from '../stores/server.svelte';
 import type { SheetPage, SheetView, SaveRemnant, NestSheetPreview, CorrectionView, CorrectionChange, NestRequest, NestView, StockChoice } from './index';
 import type { LayerChange, NewStock, SheetSize, StockChange } from './index';
 import type { PlacementChange, SimplifyView, ImportOptions, ImportReview, Move } from './index';
-import type { Calibration, FlowEstimate, GasCosts, GasKind, Nozzle, RunRecord } from './index';
+import type { Calibration, CalibrationSession, FlowEstimate, GasCosts, GasKind, Nozzle, RunRecord } from './index';
 
 /** A flow test: gas, gauge pressure, nozzle and seconds open. */
 export type FlowTest = { gas: GasKind; pressure: number; nozzle: Nozzle; seconds: number };
@@ -120,6 +120,18 @@ export const api = {
   selectSheet: (index: number) => draftPost(`/api/draft/sheet/${index}`),
   nestSheet: (id: number, index: number) => request<NestSheetPreview>('GET', `/api/draft/nest/${id}/sheet/${index}`),
   correction: (mode: LaserMode) => request<CorrectionView>('GET', `/api/machine/correction?mode=${mode}`),
+  calibrationSession: () => request<{ session: CalibrationSession | null }>('GET', '/api/calibration'),
+  /** Starts tuning a recipe; refused while another calibration runs. */
+  startCalibration: (recipe: string) => post<{ ok: true; session: CalibrationSession }>('/api/calibration/start', { recipe }),
+  /** Mints the current step's pattern as the working draft. */
+  generateCalibration: async (): Promise<DraftReply & { session: CalibrationSession | null }> => {
+    const reply = await post<DraftReply & { session: CalibrationSession | null }>('/api/calibration/generate', {});
+    server.applyDraft(reply.draft, reply.draft_revision);
+    return reply;
+  },
+  pickCalibration: (value: number) => post<{ ok: true; session: CalibrationSession }>('/api/calibration/pick', { value }),
+  saveCalibration: (name?: string) => post<{ ok: true; id: string }>('/api/calibration/save', { name }),
+  cancelCalibration: () => post('/api/calibration'),
   saveCorrection: (change: CorrectionChange) => post('/api/machine/correction', change),
   correctionCoupon: async (mode: LaserMode) => {
     const reply = await post<DraftReply>('/api/machine/correction/coupon', { mode });
